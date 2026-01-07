@@ -1,0 +1,27 @@
+{
+    "name": "builder-team-admin",
+    "description": "Builder Team Admin drive that holds a teams profile and its relevant document models. ",
+    "category": "Project Management",
+    "publisher": {
+        "name": "Powerhouse",
+        "url": "https://powerhouse.inc/"
+    },
+    "documentModels": [
+        {
+            "id": "powerhouse/service-subscriptions",
+            "name": "ServiceSubscriptions"
+        }
+    ],
+    "editors": [
+        {
+            "id": "service-subscriptions-editor",
+            "name": "ServiceSubscriptionsEditor",
+            "documentTypes": [
+                "powerhouse/service-subscriptions"
+            ]
+        }
+    ],
+    "apps": [],
+    "subgraphs": [],
+    "importScripts": []
+}
