@@ -10,10 +10,13 @@ import {
   useNodesInSelectedDriveOrFolder,
   useSelectedDriveId,
   useUserPermissions,
+  useDocumentsInSelectedDrive,
 } from "@powerhousedao/reactor-browser";
 import { useMemo, useEffect, useRef, useState, Fragment } from "react";
-import type { FolderNode, Node } from "document-drive";
+import type { FolderNode, FileNode, Node } from "document-drive";
+import type { ExpenseReportDocument } from "@powerhousedao/builder-team-admin/document-models/expense-report";
 import { Plus } from "lucide-react";
+import { ExpenseReportsStats } from "./ExpenseReportsStats.js";
 
 const EXPENSE_REPORTS_FOLDER_NAME = "Expense Reports";
 
@@ -114,7 +117,7 @@ function ExpenseReportsBreadcrumbs({ rootFolderId }: { rootFolderId: string }) {
 
   return (
     <div className="flex h-9 flex-row items-center gap-2 text-gray-500 border-b border-gray-200 pb-3">
-      {visiblePath.map((node, index) => (
+      {visiblePath.map((node) => (
         <Fragment key={node.id}>
           <div
             className="transition-colors last-of-type:text-gray-800 hover:text-gray-800 cursor-pointer"
@@ -149,6 +152,7 @@ export function ExpenseReports() {
   const hasNavigatedToFolder = useRef(false);
   const selectedNodePath = useSelectedNodePath();
   const nodesInCurrentFolder = useNodesInSelectedDriveOrFolder();
+  const documentsInDrive = useDocumentsInSelectedDrive();
 
   // Find the "Expense Reports" folder in the drive
   const expenseReportsFolder = useMemo(() => {
@@ -159,6 +163,51 @@ export function ExpenseReports() {
         isFolderNodeKind(node) && node.name === EXPENSE_REPORTS_FOLDER_NAME,
     );
   }, [driveDocument]);
+
+  // Build a set of all node IDs within the Expense Reports folder tree
+  const expenseReportsFolderNodeIds = useMemo(() => {
+    const nodeIds = new Set<string>();
+    if (!expenseReportsFolder || !driveDocument) return nodeIds;
+
+    const allNodes = driveDocument.state.global.nodes;
+
+    // Recursively collect all node IDs within the Expense Reports folder
+    const collectNodeIds = (parentId: string) => {
+      nodeIds.add(parentId);
+      for (const node of allNodes) {
+        if (isFolderNodeKind(node) && node.parentFolder === parentId) {
+          collectNodeIds(node.id);
+        } else if (isFileNodeKind(node) && node.parentFolder === parentId) {
+          nodeIds.add(node.id);
+        }
+      }
+    };
+
+    collectNodeIds(expenseReportsFolder.id);
+    return nodeIds;
+  }, [expenseReportsFolder, driveDocument]);
+
+  // Filter expense report documents that are inside the Expense Reports folder
+  const expenseReportDocuments = useMemo(() => {
+    if (!documentsInDrive || !driveDocument) return [];
+
+    // Get file nodes for expense reports in the Expense Reports folder
+    const expenseReportFileNodes = driveDocument.state.global.nodes.filter(
+      (node): node is FileNode =>
+        isFileNodeKind(node) &&
+        node.documentType === "powerhouse/expense-report" &&
+        expenseReportsFolderNodeIds.has(node.id),
+    );
+
+    // Map file node IDs to their documents
+    const fileNodeIds = new Set(expenseReportFileNodes.map((n) => n.id));
+
+    return documentsInDrive.filter(
+      (doc): doc is ExpenseReportDocument =>
+        doc.header.documentType === "powerhouse/expense-report" &&
+        fileNodeIds.has(doc.header.id),
+    );
+  }, [documentsInDrive, driveDocument, expenseReportsFolderNodeIds]);
 
   // Create folder if it doesn't exist
   useEffect(() => {
@@ -213,10 +262,19 @@ export function ExpenseReports() {
   const hasFiles = fileNodes.length > 0;
   const isEmpty = !hasFolders && !hasFiles;
 
+  const hasExpenseReports = expenseReportDocuments.length > 0;
+
   return (
     <div>
       <div className="text-2xl font-bold text-center mb-4">Expense Reports</div>
       <div className="space-y-6 px-6">
+        {/* Stats section - only shown when there are expense reports */}
+        {hasExpenseReports && (
+          <ExpenseReportsStats
+            expenseReportDocuments={expenseReportDocuments}
+          />
+        )}
+
         <ExpenseReportsBreadcrumbs rootFolderId={expenseReportsFolder.id} />
 
         {hasFolders && (
