@@ -65,6 +65,7 @@
     "@powerhousedao/design-system": "^5.1.0",
     "@powerhousedao/document-engineering": "^1.40.0",
     "@powerhousedao/vetra": "^5.1.0",
+    "@react-pdf/renderer": "^4.3.2",
     "document-model": "^5.1.0",
     "error": "^10.4.0",
     "graphql": "^16.10.0",

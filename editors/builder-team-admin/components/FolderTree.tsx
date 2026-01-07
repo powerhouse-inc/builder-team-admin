@@ -7,11 +7,16 @@ import {
   setSelectedNode,
   showCreateDocumentModal,
   useDocumentsInSelectedDrive,
+  useSelectedDrive,
+  isFolderNodeKind,
+  isFileNodeKind,
 } from "@powerhousedao/reactor-browser";
-import { CreditCard, FileText, User, Users } from "lucide-react";
+import type { Node, FolderNode, FileNode } from "document-drive";
+import { CreditCard, FileText, User, Users, Folder } from "lucide-react";
 import { useMemo, useState } from "react";
 
 const ICON_SIZE = 16;
+const EXPENSE_REPORTS_FOLDER_NAME = "Expense Reports";
 
 /** Custom view types that don't correspond to document models */
 export type CustomView = "team-members" | "expense-reports" | null;
@@ -37,10 +42,10 @@ const SECTION_TO_CUSTOM_VIEW: Record<string, CustomView> = {
 };
 
 /**
- * Navigation sections for the Builder Team Admin drive.
- * Each section maps to a document type (or placeholder for future implementation).
+ * Base navigation sections for the Builder Team Admin drive.
+ * The expense-reports section will have dynamic children added based on folder contents.
  */
-const NAVIGATION_SECTIONS: SidebarNode[] = [
+const BASE_NAVIGATION_SECTIONS: SidebarNode[] = [
   {
     id: "builder-profile",
     title: "Builder Profile",
@@ -63,6 +68,49 @@ const NAVIGATION_SECTIONS: SidebarNode[] = [
   },
 ];
 
+/**
+ * Recursively builds SidebarNode children from folder contents.
+ * Folders get folder icons, files get document icons.
+ */
+function buildSidebarNodesFromFolder(
+  parentId: string,
+  allNodes: Node[],
+): SidebarNode[] {
+  // Find all nodes that are direct children of the parent folder
+  const childNodes = allNodes.filter((node) => {
+    if (isFolderNodeKind(node)) {
+      return (node as FolderNode).parentFolder === parentId;
+    }
+    if (isFileNodeKind(node)) {
+      return (node as FileNode).parentFolder === parentId;
+    }
+    return false;
+  });
+
+  return childNodes.map((node) => {
+    const isFolder = isFolderNodeKind(node);
+    const sidebarNode: SidebarNode = {
+      id: node.id,
+      title: node.name,
+      icon: isFolder ? (
+        <Folder size={ICON_SIZE} />
+      ) : (
+        <FileText size={ICON_SIZE} />
+      ),
+    };
+
+    // Recursively add children for folders
+    if (isFolder) {
+      const children = buildSidebarNodesFromFolder(node.id, allNodes);
+      if (children.length > 0) {
+        sidebarNode.children = children;
+      }
+    }
+
+    return sidebarNode;
+  });
+}
+
 type FolderTreeProps = {
   onCustomViewChange?: (view: CustomView) => void;
 };
@@ -71,13 +119,75 @@ type FolderTreeProps = {
  * Sidebar navigation component with hardcoded navigation sections.
  * Displays Builder Profile, Team Members, Service Subscriptions, and Expense Reports.
  * Clicking a section navigates to an existing document or creates one if none exists.
+ * The Expense Reports section dynamically shows folder contents as child nodes.
  */
 export function FolderTree({ onCustomViewChange }: FolderTreeProps) {
   const [activeNodeId, setActiveNodeId] = useState<string>(
-    NAVIGATION_SECTIONS[0].id,
+    BASE_NAVIGATION_SECTIONS[0].id,
   );
 
   const documentsInDrive = useDocumentsInSelectedDrive();
+  const [driveDocument] = useSelectedDrive();
+
+  // Find the "Expense Reports" folder in the drive
+  const expenseReportsFolder = useMemo(() => {
+    if (!driveDocument) return null;
+    const nodes = driveDocument.state.global.nodes;
+    return nodes.find(
+      (node: Node): node is FolderNode =>
+        isFolderNodeKind(node) && node.name === EXPENSE_REPORTS_FOLDER_NAME,
+    );
+  }, [driveDocument]);
+
+  // Build a set of all node IDs that are within the Expense Reports folder tree
+  const expenseReportsNodeIds = useMemo(() => {
+    const nodeIds = new Set<string>();
+    if (!expenseReportsFolder || !driveDocument) return nodeIds;
+
+    const allNodes = driveDocument.state.global.nodes;
+
+    // Recursively collect all node IDs within the Expense Reports folder
+    const collectNodeIds = (parentId: string) => {
+      nodeIds.add(parentId);
+      for (const node of allNodes) {
+        if (isFolderNodeKind(node) && node.parentFolder === parentId) {
+          collectNodeIds(node.id);
+        } else if (isFileNodeKind(node) && node.parentFolder === parentId) {
+          nodeIds.add(node.id);
+        }
+      }
+    };
+
+    collectNodeIds(expenseReportsFolder.id);
+    return nodeIds;
+  }, [expenseReportsFolder, driveDocument]);
+
+  // Build navigation sections with dynamic expense reports children
+  const navigationSections = useMemo(() => {
+    if (!expenseReportsFolder || !driveDocument) {
+      return BASE_NAVIGATION_SECTIONS;
+    }
+
+    const allNodes = driveDocument.state.global.nodes;
+    const expenseReportsChildren = buildSidebarNodesFromFolder(
+      expenseReportsFolder.id,
+      allNodes,
+    );
+
+    // Replace the expense-reports section with one that has children
+    return BASE_NAVIGATION_SECTIONS.map((section) => {
+      if (
+        section.id === "expense-reports" &&
+        expenseReportsChildren.length > 0
+      ) {
+        return {
+          ...section,
+          children: expenseReportsChildren,
+        };
+      }
+      return section;
+    });
+  }, [expenseReportsFolder, driveDocument]);
 
   // Check if builder profile document exists - don't show sidebar if it doesn't
   const hasBuilderProfile = useMemo(() => {
@@ -86,11 +196,6 @@ export function FolderTree({ onCustomViewChange }: FolderTreeProps) {
       (doc) => doc.header.documentType === "powerhouse/builder-profile",
     );
   }, [documentsInDrive]);
-
-  // Don't render if no builder profile exists
-  if (!hasBuilderProfile) {
-    return null;
-  }
 
   // Create a map of document type to existing document (first one found)
   const existingDocumentsByType = useMemo(() => {
@@ -107,8 +212,32 @@ export function FolderTree({ onCustomViewChange }: FolderTreeProps) {
     return map;
   }, [documentsInDrive]);
 
+  // Don't render if no builder profile exists
+  if (!hasBuilderProfile) {
+    return null;
+  }
+
   const handleActiveNodeChange = (node: SidebarNode) => {
     setActiveNodeId(node.id);
+
+    // Check if this is a child node within the Expense Reports folder
+    if (expenseReportsNodeIds.has(node.id)) {
+      // Check if it's a folder or a document
+      const driveNode = driveDocument?.state.global.nodes.find(
+        (n: Node) => n.id === node.id,
+      );
+
+      if (driveNode && isFolderNodeKind(driveNode)) {
+        // It's a folder - navigate to it within the expense reports view
+        onCustomViewChange?.("expense-reports");
+        setSelectedNode(node.id);
+      } else if (driveNode && isFileNodeKind(driveNode)) {
+        // It's a document - open the document editor
+        onCustomViewChange?.(null);
+        setSelectedNode(node.id);
+      }
+      return;
+    }
 
     // Check if this section has a custom view
     const customView = SECTION_TO_CUSTOM_VIEW[node.id];
@@ -135,10 +264,10 @@ export function FolderTree({ onCustomViewChange }: FolderTreeProps) {
   };
 
   return (
-    <SidebarProvider nodes={NAVIGATION_SECTIONS}>
+    <SidebarProvider nodes={navigationSections}>
       <Sidebar
         className="pt-1"
-        nodes={NAVIGATION_SECTIONS}
+        nodes={navigationSections}
         activeNodeId={activeNodeId}
         onActiveNodeChange={handleActiveNodeChange}
         sidebarTitle="Builder Team Admin"
