@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { generateId } from "document-model/core";
-import { useSelectedServiceSubscriptionsDocument } from "@powerhousedao/builder-team-admin/document-models/service-subscriptions";
+import { useSelectedServiceSubscriptionsDocument } from "../../../document-models/service-subscriptions/hooks.js";
 import { addVendor } from "../../../document-models/service-subscriptions/gen/creators.js";
 
 interface AddVendorModalProps {

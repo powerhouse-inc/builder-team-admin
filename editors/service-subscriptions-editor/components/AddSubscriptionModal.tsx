@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { generateId } from "document-model/core";
-import { useSelectedServiceSubscriptionsDocument } from "@powerhousedao/builder-team-admin/document-models/service-subscriptions";
+import { useSelectedServiceSubscriptionsDocument } from "../../../document-models/service-subscriptions/hooks.js";
 import { addSubscription } from "../../../document-models/service-subscriptions/gen/creators.js";
 import type {
   Vendor,
   Category,
   BillingCycle,
   SubscriptionStatus,
-} from "@powerhousedao/builder-team-admin/document-models/service-subscriptions";
+} from "../../../document-models/service-subscriptions/gen/types.js";
 
 interface AddSubscriptionModalProps {
   vendors: Vendor[];

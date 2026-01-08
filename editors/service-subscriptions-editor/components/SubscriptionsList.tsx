@@ -1,4 +1,4 @@
-import { useSelectedServiceSubscriptionsDocument } from "@powerhousedao/builder-team-admin/document-models/service-subscriptions";
+import { useSelectedServiceSubscriptionsDocument } from "../../../document-models/service-subscriptions/hooks.js";
 import {
   deleteSubscription,
   updateSubscriptionStatus,
@@ -10,7 +10,7 @@ import type {
   Vendor,
   Category,
   SubscriptionStatus,
-} from "@powerhousedao/builder-team-admin/document-models/service-subscriptions";
+} from "../../../document-models/service-subscriptions/gen/types.js";
 import { useState } from "react";
 
 interface SubscriptionsListProps {

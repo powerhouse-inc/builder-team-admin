@@ -1,4 +1,4 @@
-import type { ServiceSubscription } from "@powerhousedao/builder-team-admin/document-models/service-subscriptions";
+import type { ServiceSubscription } from "../../../document-models/service-subscriptions/gen/types.js";
 
 interface StatsOverviewProps {
   subscriptions: ServiceSubscription[];

@@ -21,7 +21,15 @@
             ]
         }
     ],
-    "apps": [],
+    "apps": [
+        {
+            "id": "builder-team-admin",
+            "name": "Builder Team Admin",
+            "documentTypes": [
+                "powerhouse/document-drive"
+            ]
+        }
+    ],
     "subgraphs": [],
     "importScripts": []
 }

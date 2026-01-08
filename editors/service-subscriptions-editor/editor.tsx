@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useSelectedServiceSubscriptionsDocument } from "@powerhousedao/builder-team-admin/document-models/service-subscriptions";
+import { useSelectedServiceSubscriptionsDocument } from "../../document-models/service-subscriptions/hooks.js";
 import { SubscriptionsList } from "./components/SubscriptionsList.js";
 import { VendorsList } from "./components/VendorsList.js";
 import { CategoriesList } from "./components/CategoriesList.js";

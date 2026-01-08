@@ -1,4 +1,4 @@
-import { useMemo, useCallback } from "react";
+import { useMemo, useCallback, useState, useEffect } from "react";
 import type { FileNode } from "document-drive";
 import {
   useDocumentsInSelectedDrive,
@@ -17,6 +17,7 @@ import type {
   BuilderProfileState,
 } from "@powerhousedao/builder-profile/document-models/builder-profile";
 import { actions as builderProfileActions } from "@powerhousedao/builder-profile/document-models/builder-profile";
+import { useRemoteBuilderProfiles } from "../hooks/useRemoteBuilderProfiles.js";
 
 type Contributor = {
   phid: string;
@@ -31,6 +32,134 @@ type ProfileOption = {
   value: string;
   title: string;
 };
+
+/**
+ * Wrapper component for PHIDInput that properly tracks selected PHID
+ * and handles saving on blur/enter with the correct PHID value.
+ *
+ * Key insight from the PHIDInput library:
+ * - onChange is called with the PHID value when user selects from dropdown (click or Enter on highlighted item)
+ * - After dropdown selection, the input is re-focused so onBlur doesn't fire
+ * - Therefore we must save immediately in onChange when a valid PHID is selected
+ */
+function ContributorPHIDInput({
+  initialPhid,
+  options,
+  onSave,
+  fetchOptionsCallback,
+}: {
+  initialPhid: string;
+  options: ProfileOption[];
+  onSave: (phid: string) => void;
+  fetchOptionsCallback: (input: string) => Promise<ProfileOption[]>;
+}) {
+  // Track the current input text for manual entry lookup
+  const [inputText, setInputText] = useState("");
+  // Track if we already saved to prevent duplicate saves
+  const [hasSaved, setHasSaved] = useState(false);
+
+  // Reset state when initialPhid changes (switching between rows)
+  useEffect(() => {
+    setInputText("");
+    setHasSaved(false);
+  }, [initialPhid]);
+
+  // Find PHID by name or return the input if it looks like a PHID
+  const findPhidByInput = useCallback(
+    (input: string): string | null => {
+      const trimmed = input.trim();
+      if (!trimmed) return null;
+
+      const lowerInput = trimmed.toLowerCase();
+
+      // Check if input matches a profile name exactly (case-insensitive)
+      const exactMatchByName = options.find(
+        (opt) => opt.label.toLowerCase() === lowerInput,
+      );
+      if (exactMatchByName) return exactMatchByName.id;
+
+      // Check if input matches a profile name partially (first match that starts with input)
+      const partialMatchByName = options.find((opt) =>
+        opt.label.toLowerCase().startsWith(lowerInput),
+      );
+      if (partialMatchByName) return partialMatchByName.id;
+
+      // Check if only one option contains the input (unambiguous match)
+      const containsMatches = options.filter((opt) =>
+        opt.label.toLowerCase().includes(lowerInput),
+      );
+      if (containsMatches.length === 1) return containsMatches[0].id;
+
+      // Check if input matches a profile ID
+      const matchById = options.find(
+        (opt) => opt.id.toLowerCase() === lowerInput,
+      );
+      if (matchById) return matchById.id;
+
+      // If input looks like a UUID, return it directly
+      const uuidRegex =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (uuidRegex.test(trimmed)) return trimmed;
+
+      return null;
+    },
+    [options],
+  );
+
+  // Check if a value is a known PHID from options
+  const isKnownPhid = useCallback(
+    (value: string): boolean => {
+      return options.some((opt) => opt.id === value);
+    },
+    [options],
+  );
+
+  // Save a PHID value (with duplicate prevention)
+  const savePhid = useCallback(
+    (phid: string) => {
+      if (!hasSaved && phid && phid !== initialPhid) {
+        setHasSaved(true);
+        onSave(phid);
+      }
+    },
+    [hasSaved, initialPhid, onSave],
+  );
+
+  // Handle blur - try to save based on inputText
+  const handleBlur = useCallback(() => {
+    if (hasSaved) return;
+    if (inputText) {
+      const foundPhid = findPhidByInput(inputText);
+      if (foundPhid) {
+        savePhid(foundPhid);
+      }
+    }
+  }, [hasSaved, inputText, findPhidByInput, savePhid]);
+
+  return (
+    <PHIDInput
+      value={initialPhid}
+      onChange={(newValue) => {
+        // onChange is called when user selects from dropdown (click or Enter on highlighted item)
+        // The newValue is the PHID. Save immediately if it's a valid known PHID.
+        if (isKnownPhid(newValue)) {
+          savePhid(newValue);
+        }
+      }}
+      onInput={(e) => {
+        // Track the raw input text for manual entry lookup on blur
+        const target = e.target as HTMLInputElement;
+        setInputText(target.value);
+      }}
+      onBlur={handleBlur}
+      placeholder="Enter PHID or search by name"
+      className="w-full"
+      variant="withValueAndTitle"
+      initialOptions={options}
+      fetchOptionsCallback={fetchOptionsCallback}
+    />
+  );
+}
 
 export function ContributorsSection({}) {
   const drives = useDrives();
@@ -79,8 +208,8 @@ export function ContributorsSection({}) {
   // Fetch all builder profile documents from all drives
   const builderProfileDocuments = useGetDocuments(builderPhids);
 
-  // Create a map of PHID to document for quick lookup
-  const builderProfileMap = useMemo(() => {
+  // Create a map of PHID to document for quick lookup (local drives)
+  const localBuilderProfileMap = useMemo(() => {
     const map = new Map<string, BuilderProfileDocument>();
     if (!builderProfileDocuments) return map;
     builderProfileDocuments.forEach((doc) => {
@@ -91,33 +220,69 @@ export function ContributorsSection({}) {
     return map;
   }, [builderProfileDocuments]);
 
-  // Helper function to get builder profile documents from all drives
-  const getBuilderProfiles = useCallback((): ProfileOption[] => {
-    return builderProfileNodesWithDriveId.map(({ node }) => {
-      const doc = builderProfileMap.get(node.id);
-      const name = doc?.state?.global?.name || node.name || node.id;
-      return {
-        id: node.id,
-        label: name,
-        value: node.id,
-        title: name,
-      };
-    });
-  }, [builderProfileNodesWithDriveId, builderProfileMap]);
+  // Fetch remote profiles as fallback for contributors not found locally
+  const { profileMap: remoteProfileMap, allProfiles: remoteProfiles } =
+    useRemoteBuilderProfiles(localBuilderProfileMap);
 
-  // Helper function to get builder profile data by PHID from all drives
+  // Helper function to get builder profile documents from all drives (local + remote)
+  const getBuilderProfiles = useCallback((): ProfileOption[] => {
+    // Start with local profiles
+    const profileOptions: ProfileOption[] = builderProfileNodesWithDriveId.map(
+      ({ node }) => {
+        const doc = localBuilderProfileMap.get(node.id);
+        const name = doc?.state?.global?.name || node.name || node.id;
+        return {
+          id: node.id,
+          label: name,
+          value: node.id,
+          title: name,
+        };
+      },
+    );
+
+    // Add remote profiles that aren't already in local
+    const localIds = new Set(profileOptions.map((p) => p.id));
+    for (const remoteProfile of remoteProfiles) {
+      if (!localIds.has(remoteProfile.id)) {
+        const name = remoteProfile.state?.name || remoteProfile.id;
+        profileOptions.push({
+          id: remoteProfile.id,
+          label: name,
+          value: remoteProfile.id,
+          title: name,
+        });
+      }
+    }
+
+    return profileOptions;
+  }, [builderProfileNodesWithDriveId, localBuilderProfileMap, remoteProfiles]);
+
+  // Helper function to get builder profile data by PHID (local first, then remote fallback)
   const getBuilderProfileByPhid = useCallback(
     (phid: string) => {
-      const doc = builderProfileMap.get(phid);
-      if (!doc) return null;
+      // Try local first
+      const localDoc = localBuilderProfileMap.get(phid);
+      if (localDoc) {
+        return {
+          name: localDoc.state.global?.name || localDoc.header.id,
+          slug: localDoc.state.global?.slug || localDoc.header.id,
+          icon: localDoc.state.global?.icon || null,
+        };
+      }
 
-      return {
-        name: doc.state.global?.name || doc.header.id,
-        slug: doc.state.global?.slug || doc.header.id,
-        icon: doc.state.global?.icon || null,
-      };
+      // Fall back to remote
+      const remoteProfile = remoteProfileMap.get(phid);
+      if (remoteProfile) {
+        return {
+          name: remoteProfile.state?.name || remoteProfile.id,
+          slug: remoteProfile.state?.slug || remoteProfile.id,
+          icon: remoteProfile.state?.icon || null,
+        };
+      }
+
+      return null;
     },
-    [builderProfileMap],
+    [localBuilderProfileMap, remoteProfileMap],
   );
 
   const contributorData = useMemo<Contributor[]>(() => {
@@ -159,65 +324,63 @@ export function ContributorsSection({}) {
           }
           return false;
         },
-        renderCellEditor: (value, onChange, context) => (
-          <PHIDInput
-            value={(value as string) || ""}
-            onChange={(newValue) => {
-              onChange(newValue);
-            }}
-            onBlur={(e) => {
-              const newValue = e.target.value;
-              const currentValue = (value as string) || "";
+        renderCellEditor: (_value, _onChange, context) => {
+          const currentPhid = context.row.phid || "";
 
-              // If a PHID is entered and it's different from current value
-              if (newValue && newValue !== currentValue) {
-                const existingContributor = contributors.find(
-                  (contributor) => contributor === newValue,
-                );
+          const handleSave = (phidValue: string) => {
+            // If a PHID is entered and it's different from current value
+            if (phidValue && phidValue !== currentPhid) {
+              const existingContributor = contributors.find(
+                (contributor) => contributor === phidValue,
+              );
 
-                if (!existingContributor) {
-                  // If we're editing an existing row (has an ID), remove the old one first
-                  if (context.row.phid && context.row.phid !== newValue) {
-                    dispatch(
-                      builderProfileActions.removeContributor({
-                        contributorPHID: context.row.phid,
-                      }),
-                    );
-                  }
-
-                  // Add the new contributor
+              if (!existingContributor) {
+                // If we're editing an existing row (has an ID), remove the old one first
+                if (currentPhid && currentPhid !== phidValue) {
                   dispatch(
-                    builderProfileActions.addContributor({
-                      contributorPHID: newValue,
+                    builderProfileActions.removeContributor({
+                      contributorPHID: currentPhid,
                     }),
                   );
                 }
+
+                // Add the new contributor
+                dispatch(
+                  builderProfileActions.addContributor({
+                    contributorPHID: phidValue,
+                  }),
+                );
               }
-            }}
-            placeholder="Enter PHID"
-            className="w-full"
-            variant="withValueAndTitle"
-            initialOptions={getBuilderProfiles()}
-            fetchOptionsCallback={(userInput: string) => {
-              const builderProfiles = getBuilderProfiles();
+            }
+          };
 
-              // Filter profiles based on user input
-              if (!userInput.trim()) {
-                return Promise.resolve(builderProfiles);
-              }
+          const fetchOptions = (userInput: string) => {
+            const builderProfiles = getBuilderProfiles();
 
-              const filteredProfiles = builderProfiles.filter(
-                (profile) =>
-                  profile.label
-                    .toLowerCase()
-                    .includes(userInput.toLowerCase()) ||
-                  profile.id.toLowerCase().includes(userInput.toLowerCase()),
-              );
+            // Filter profiles based on user input
+            if (!userInput.trim()) {
+              return Promise.resolve(builderProfiles);
+            }
 
-              return Promise.resolve(filteredProfiles);
-            }}
-          />
-        ),
+            const filteredProfiles = builderProfiles.filter(
+              (profile) =>
+                profile.label.toLowerCase().includes(userInput.toLowerCase()) ||
+                profile.id.toLowerCase().includes(userInput.toLowerCase()),
+            );
+
+            return Promise.resolve(filteredProfiles);
+          };
+
+          return (
+            <ContributorPHIDInput
+              key={`phid-input-${currentPhid || Date.now()}`}
+              initialPhid={currentPhid}
+              options={getBuilderProfiles()}
+              onSave={handleSave}
+              fetchOptionsCallback={fetchOptions}
+            />
+          );
+        },
         renderCell: (value) => {
           if (value === "" || !value) {
             return (

@@ -1,6 +1,6 @@
-import { useSelectedServiceSubscriptionsDocument } from "@powerhousedao/builder-team-admin/document-models/service-subscriptions";
+import { useSelectedServiceSubscriptionsDocument } from "../../../document-models/service-subscriptions/hooks.js";
 import { deleteCategory } from "../../../document-models/service-subscriptions/gen/creators.js";
-import type { Category } from "@powerhousedao/builder-team-admin/document-models/service-subscriptions";
+import type { Category } from "../../../document-models/service-subscriptions/gen/types.js";
 
 interface CategoriesListProps {
   categories: Category[];

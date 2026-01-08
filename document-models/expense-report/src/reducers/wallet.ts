@@ -1,4 +1,4 @@
-import type { ExpenseReportWalletOperations } from "@powerhousedao/builder-team-admin/document-models/expense-report";
+import type { ExpenseReportWalletOperations } from "../../gen/wallet/operations.js";
 
 export const expenseReportWalletOperations: ExpenseReportWalletOperations = {
   addWalletOperation(state, action) {

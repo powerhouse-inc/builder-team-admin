@@ -8,7 +8,7 @@ import {
 import type {
   ServiceSubscriptionsDocument,
   ServiceSubscriptionsAction,
-} from "@powerhousedao/builder-team-admin/document-models/service-subscriptions";
+} from "./gen/types.js";
 import { isServiceSubscriptionsDocument } from "./gen/document-schema.js";
 
 /** Hook to get a ServiceSubscriptions document by its id */

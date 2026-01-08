@@ -11,10 +11,11 @@ import {
   useSelectedDriveId,
   useUserPermissions,
   useDocumentsInSelectedDrive,
+  useNodeActions,
 } from "@powerhousedao/reactor-browser";
 import { useMemo, useEffect, useRef, useState, Fragment } from "react";
 import type { FolderNode, FileNode, Node } from "document-drive";
-import type { ExpenseReportDocument } from "@powerhousedao/builder-team-admin/document-models/expense-report";
+import type { ExpenseReportDocument } from "../../../document-models/expense-report/gen/types.js";
 import { Plus } from "lucide-react";
 import { ExpenseReportsStats } from "./ExpenseReportsStats.js";
 
@@ -216,7 +217,7 @@ export function ExpenseReports() {
 
     hasCreatedFolder.current = true;
     const driveId = driveDocument.header.id;
-    addFolder(driveId, EXPENSE_REPORTS_FOLDER_NAME);
+    void addFolder(driveId, EXPENSE_REPORTS_FOLDER_NAME);
   }, [driveDocument, expenseReportsFolder]);
 
   // Navigate to the folder when it exists (only once on mount)
@@ -243,6 +244,111 @@ export function ExpenseReports() {
       setSelectedNode(expenseReportsFolder.id);
     }
   }, [expenseReportsFolder, isWithinExpenseReports]);
+
+  // Track which documents have been processed for auto-placement
+  const processedDocsRef = useRef<Set<string>>(new Set());
+
+  // Get node actions for moving files
+  const { onMoveNode } = useNodeActions();
+
+  // Get year folders that exist directly under the Expense Reports folder
+  const yearFolders = useMemo(() => {
+    if (!driveDocument || !expenseReportsFolder)
+      return new Map<string, FolderNode>();
+    const folders = new Map<string, FolderNode>(); // year string -> folder node
+    for (const node of driveDocument.state.global.nodes) {
+      if (
+        isFolderNodeKind(node) &&
+        node.parentFolder === expenseReportsFolder.id &&
+        /^\d{4}$/.test(node.name) // folder name is a 4-digit year
+      ) {
+        folders.set(node.name, node);
+      }
+    }
+    return folders;
+  }, [driveDocument, expenseReportsFolder]);
+
+  // Auto-place expense reports into year folders based on periodStart
+  useEffect(() => {
+    if (!driveDocument || !expenseReportsFolder || !documentsInDrive) return;
+
+    const driveId = driveDocument.header.id;
+    const allNodes = driveDocument.state.global.nodes;
+
+    // Find expense report file nodes that are directly in the Expense Reports root folder
+    const expenseReportNodesInRoot = allNodes.filter(
+      (node): node is FileNode =>
+        isFileNodeKind(node) &&
+        node.documentType === "powerhouse/expense-report" &&
+        node.parentFolder === expenseReportsFolder.id,
+    );
+
+    // Process each expense report in the root folder
+    for (const fileNode of expenseReportNodesInRoot) {
+      // Skip if already processed
+      if (processedDocsRef.current.has(fileNode.id)) continue;
+
+      // Find the corresponding document to get periodStart
+      const doc = documentsInDrive.find(
+        (d): d is ExpenseReportDocument =>
+          d.header.documentType === "powerhouse/expense-report" &&
+          d.header.id === fileNode.id,
+      );
+
+      if (!doc) continue;
+
+      const periodStart = doc.state.global.periodStart;
+      if (!periodStart) {
+        // No period defined - leave in root folder (this signals something is wrong)
+        processedDocsRef.current.add(fileNode.id);
+        continue;
+      }
+
+      // Extract year from periodStart
+      const year = new Date(periodStart).getFullYear().toString();
+
+      // Mark as processed immediately to prevent duplicate processing
+      processedDocsRef.current.add(fileNode.id);
+
+      // Check if year folder exists
+      const existingYearFolder = yearFolders.get(year);
+
+      if (existingYearFolder) {
+        // Year folder exists - move the document there
+        onMoveNode(fileNode, existingYearFolder).catch((error: unknown) => {
+          console.error(
+            `Failed to move expense report to ${year} folder:`,
+            error,
+          );
+          // Remove from processed so it can be retried
+          processedDocsRef.current.delete(fileNode.id);
+        });
+      } else {
+        // Create year folder first, then move the document
+        addFolder(driveId, year, expenseReportsFolder.id)
+          .then((newFolder) => {
+            if (newFolder) {
+              // Move the document to the new year folder
+              return onMoveNode(fileNode, newFolder);
+            }
+          })
+          .catch((error: unknown) => {
+            console.error(
+              `Failed to create ${year} folder or move expense report:`,
+              error,
+            );
+            // Remove from processed so it can be retried
+            processedDocsRef.current.delete(fileNode.id);
+          });
+      }
+    }
+  }, [
+    driveDocument,
+    expenseReportsFolder,
+    documentsInDrive,
+    yearFolders,
+    onMoveNode,
+  ]);
 
   // Show loading state while folder is being created
   if (!expenseReportsFolder) {

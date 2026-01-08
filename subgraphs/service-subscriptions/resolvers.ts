@@ -4,7 +4,7 @@ import { setName } from "document-model";
 import {
   actions,
   serviceSubscriptionsDocumentType,
-} from "@powerhousedao/builder-team-admin/document-models/service-subscriptions";
+} from "../../document-models/service-subscriptions/index.js";
 
 import type {
   ServiceSubscriptionsDocument,
@@ -21,7 +21,7 @@ import type {
   SetTotalSeatsInput,
   AssignMemberInput,
   UnassignMemberInput,
-} from "@powerhousedao/builder-team-admin/document-models/service-subscriptions";
+} from "../../document-models/service-subscriptions/gen/types.js";
 
 export const getResolvers = (
   subgraph: BaseSubgraph,

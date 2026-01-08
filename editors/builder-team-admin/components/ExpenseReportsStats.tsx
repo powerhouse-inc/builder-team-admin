@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import type { ExpenseReportDocument } from "@powerhousedao/builder-team-admin/document-models/expense-report";
+import type { ExpenseReportDocument } from "../../../document-models/expense-report/gen/types.js";
 
 type ExpenseReportDataPoint = {
   periodStart: Date | null;

@@ -1,8 +1,8 @@
 import { useMemo } from "react";
 import { useDocumentsInSelectedDrive } from "@powerhousedao/reactor-browser";
 import type { BuilderProfileDocument } from "@powerhousedao/builder-profile/document-models/builder-profile";
-import type { ServiceSubscriptionsDocument } from "@powerhousedao/builder-team-admin/document-models/service-subscriptions";
-import type { ExpenseReportDocument } from "@powerhousedao/builder-team-admin/document-models/expense-report";
+import type { ServiceSubscriptionsDocument } from "../../../document-models/service-subscriptions/gen/types.js";
+import type { ExpenseReportDocument } from "../../../document-models/expense-report/gen/types.js";
 import { ProfileHeader } from "./overview/ProfileHeader.js";
 import { TeamMembersOverview } from "./overview/TeamMembersOverview.js";
 import {

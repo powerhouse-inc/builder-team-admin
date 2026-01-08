@@ -1,7 +1,8 @@
-import { useMemo, useCallback } from "react";
+import { useMemo, useCallback, useState } from "react";
 import type { FileNode } from "document-drive";
 import { useDrives, useGetDocuments } from "@powerhousedao/reactor-browser";
 import type { BuilderProfileDocument } from "@powerhousedao/builder-profile/document-models/builder-profile";
+import { useRemoteBuilderProfiles } from "../../hooks/useRemoteBuilderProfiles.js";
 
 type TeamMember = {
   phid: string;
@@ -49,8 +50,8 @@ export function TeamMembersOverview({
   // Fetch all builder profile documents from all drives
   const builderProfileDocuments = useGetDocuments(builderPhids);
 
-  // Create a map of PHID to document for quick lookup
-  const builderProfileMap = useMemo(() => {
+  // Create a map of PHID to document for quick lookup (local drives)
+  const localBuilderProfileMap = useMemo(() => {
     const map = new Map<string, BuilderProfileDocument>();
     for (const doc of builderProfileDocuments) {
       if (doc.header.documentType === "powerhouse/builder-profile") {
@@ -60,19 +61,36 @@ export function TeamMembersOverview({
     return map;
   }, [builderProfileDocuments]);
 
-  // Helper function to get builder profile data by PHID
+  // Fetch remote profiles as fallback for contributors not found locally
+  const { profileMap: remoteProfileMap } =
+    useRemoteBuilderProfiles(localBuilderProfileMap);
+
+  // Helper function to get builder profile data by PHID (local first, then remote fallback)
   const getBuilderProfileByPhid = useCallback(
     (phid: string): TeamMember | null => {
-      const doc = builderProfileMap.get(phid);
-      if (!doc) return null;
+      // Try local first
+      const localDoc = localBuilderProfileMap.get(phid);
+      if (localDoc) {
+        return {
+          phid,
+          name: localDoc.state.global.name || "Unknown",
+          icon: localDoc.state.global.icon || null,
+        };
+      }
 
-      return {
-        phid,
-        name: doc.state.global.name || "Unknown",
-        icon: doc.state.global.icon || null,
-      };
+      // Fall back to remote
+      const remoteProfile = remoteProfileMap.get(phid);
+      if (remoteProfile) {
+        return {
+          phid,
+          name: remoteProfile.state?.name || "Unknown",
+          icon: remoteProfile.state?.icon || null,
+        };
+      }
+
+      return null;
     },
-    [builderProfileMap],
+    [localBuilderProfileMap, remoteProfileMap],
   );
 
   // Map contributors to team member data
@@ -84,12 +102,16 @@ export function TeamMembersOverview({
   }, [contributors, getBuilderProfileByPhid]);
 
   const contributorCount = contributors?.length ?? 0;
+  const [isExpanded, setIsExpanded] = useState(false);
 
   if (contributorCount === 0) {
     return <TeamMembersEmptyState />;
   }
 
-  const visibleMembers = teamMembers.slice(0, MAX_VISIBLE_MEMBERS);
+  const hasOverflow = contributorCount > MAX_VISIBLE_MEMBERS;
+  const visibleMembers = isExpanded
+    ? teamMembers
+    : teamMembers.slice(0, MAX_VISIBLE_MEMBERS);
   const overflowCount = contributorCount - MAX_VISIBLE_MEMBERS;
 
   return (
@@ -105,7 +127,15 @@ export function TeamMembersOverview({
         {visibleMembers.map((member) => (
           <MemberCard key={member.phid} member={member} />
         ))}
-        {overflowCount > 0 && <OverflowIndicator count={overflowCount} />}
+        {hasOverflow && !isExpanded && (
+          <OverflowIndicator
+            count={overflowCount}
+            onClick={() => setIsExpanded(true)}
+          />
+        )}
+        {hasOverflow && isExpanded && (
+          <CollapseIndicator onClick={() => setIsExpanded(false)} />
+        )}
       </div>
     </div>
   );
@@ -155,16 +185,64 @@ function MemberCard({ member }: { member: TeamMember }) {
 }
 
 /**
- * Overflow indicator showing remaining member count.
+ * Overflow indicator showing remaining member count. Clickable to expand.
  */
-function OverflowIndicator({ count }: { count: number }) {
+function OverflowIndicator({
+  count,
+  onClick,
+}: {
+  count: number;
+  onClick: () => void;
+}) {
   return (
-    <div className="flex flex-col items-center gap-2">
-      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 ring-2 ring-white shadow-sm">
-        <span className="text-sm font-semibold text-slate-500">+{count}</span>
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex flex-col items-center gap-2 group cursor-pointer"
+      title="Click to show all members"
+    >
+      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 ring-2 ring-white shadow-sm transition-all group-hover:bg-indigo-100 group-hover:ring-indigo-200">
+        <span className="text-sm font-semibold text-slate-500 group-hover:text-indigo-600">
+          +{count}
+        </span>
       </div>
-      <span className="text-xs font-medium text-slate-400">more</span>
-    </div>
+      <span className="text-xs font-medium text-slate-400 group-hover:text-indigo-500">
+        show all
+      </span>
+    </button>
+  );
+}
+
+/**
+ * Collapse indicator to hide extra members. Clickable to collapse.
+ */
+function CollapseIndicator({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex flex-col items-center gap-2 group cursor-pointer"
+      title="Click to show less"
+    >
+      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 ring-2 ring-white shadow-sm transition-all group-hover:bg-slate-200">
+        <svg
+          className="h-5 w-5 text-slate-500 group-hover:text-slate-700"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M5 15l7-7 7 7"
+          />
+        </svg>
+      </div>
+      <span className="text-xs font-medium text-slate-400 group-hover:text-slate-600">
+        show less
+      </span>
+    </button>
   );
 }
 

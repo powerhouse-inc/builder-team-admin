@@ -1,4 +1,4 @@
-import type { ServiceSubscriptionsVendorsOperations } from "@powerhousedao/builder-team-admin/document-models/service-subscriptions";
+import type { ServiceSubscriptionsVendorsOperations } from "../../gen/vendors/operations.js";
 
 export const serviceSubscriptionsVendorsOperations: ServiceSubscriptionsVendorsOperations =
   {

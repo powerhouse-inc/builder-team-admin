@@ -17,7 +17,7 @@
     },
     {
       "packageName": "@powerhousedao/builder-profile",
-      "version": "latest",
+      "version": "0.0.7",
       "provider": "npm"
     }
   ]

@@ -8,7 +8,7 @@ import {
 import type {
   ExpenseReportDocument,
   ExpenseReportAction,
-} from "@powerhousedao/builder-team-admin/document-models/expense-report";
+} from "./gen/types.js";
 import { isExpenseReportDocument } from "./gen/document-schema.js";
 
 /** Hook to get a ExpenseReport document by its id */

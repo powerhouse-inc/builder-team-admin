@@ -22,13 +22,9 @@ export function ProfileHeader({ builderProfileDoc }: ProfileHeaderProps) {
     .toUpperCase();
 
   return (
-    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-50 via-indigo-50/40 to-blue-50/30 p-8 border border-slate-200/60">
-      {/* Decorative background elements */}
-      <div className="absolute -right-16 -top-16 h-48 w-48 rounded-full bg-gradient-to-br from-indigo-200/30 to-blue-200/30 blur-2xl" />
-      <div className="absolute -bottom-12 -left-12 h-32 w-32 rounded-full bg-gradient-to-br from-slate-200/40 to-indigo-200/30 blur-xl" />
-
+    <div className="overflow-hidden rounded-2xl bg-gradient-to-br from-slate-50 via-indigo-50/40 to-blue-50/30 p-8 border border-slate-200/60">
       {/* Content */}
-      <div className="relative z-10 flex items-center gap-6">
+      <div className="flex items-center gap-6">
         {/* Avatar */}
         <div className="relative">
           {icon ? (

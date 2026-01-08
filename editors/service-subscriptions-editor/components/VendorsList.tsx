@@ -1,6 +1,6 @@
-import { useSelectedServiceSubscriptionsDocument } from "@powerhousedao/builder-team-admin/document-models/service-subscriptions";
+import { useSelectedServiceSubscriptionsDocument } from "../../../document-models/service-subscriptions/hooks.js";
 import { deleteVendor } from "../../../document-models/service-subscriptions/gen/creators.js";
-import type { Vendor } from "@powerhousedao/builder-team-admin/document-models/service-subscriptions";
+import type { Vendor } from "../../../document-models/service-subscriptions/gen/types.js";
 
 interface VendorsListProps {
   vendors: Vendor[];

@@ -67,7 +67,7 @@ export type AddSubscriptionInput = {
   accountOwner?: InputMaybe<Scalars["String"]["input"]>;
   amount?: InputMaybe<Scalars["Amount_Money"]["input"]>;
   autoRenew?: InputMaybe<Scalars["Boolean"]["input"]>;
-  billingCycle: BillingCycle | `${BillingCycle}`;
+  billingCycle: BillingCycle;
   categoryId?: InputMaybe<Scalars["OID"]["input"]>;
   currency?: InputMaybe<Scalars["Currency"]["input"]>;
   endDate?: InputMaybe<Scalars["Date"]["input"]>;
@@ -79,7 +79,7 @@ export type AddSubscriptionInput = {
   planName?: InputMaybe<Scalars["String"]["input"]>;
   seats?: InputMaybe<SeatsAllocationInput>;
   startDate?: InputMaybe<Scalars["Date"]["input"]>;
-  status: SubscriptionStatus | `${SubscriptionStatus}`;
+  status: SubscriptionStatus;
   tags?: InputMaybe<Array<Scalars["String"]["input"]>>;
   vendorId: Scalars["OID"]["input"];
 };
@@ -138,7 +138,7 @@ export type ServiceSubscription = {
   accountOwner: Maybe<Scalars["String"]["output"]>;
   amount: Maybe<Scalars["Amount_Money"]["output"]>;
   autoRenew: Maybe<Scalars["Boolean"]["output"]>;
-  billingCycle: BillingCycle | `${BillingCycle}`;
+  billingCycle: BillingCycle;
   categoryId: Maybe<Scalars["OID"]["output"]>;
   currency: Maybe<Scalars["Currency"]["output"]>;
   endDate: Maybe<Scalars["Date"]["output"]>;
@@ -150,7 +150,7 @@ export type ServiceSubscription = {
   planName: Maybe<Scalars["String"]["output"]>;
   seats: Maybe<SeatsAllocation>;
   startDate: Maybe<Scalars["Date"]["output"]>;
-  status: SubscriptionStatus | `${SubscriptionStatus}`;
+  status: SubscriptionStatus;
   tags: Array<Scalars["String"]["output"]>;
   vendorId: Scalars["OID"]["output"];
 };
@@ -190,7 +190,7 @@ export type UpdateSubscriptionInput = {
   accountOwner?: InputMaybe<Scalars["String"]["input"]>;
   amount?: InputMaybe<Scalars["Amount_Money"]["input"]>;
   autoRenew?: InputMaybe<Scalars["Boolean"]["input"]>;
-  billingCycle?: InputMaybe<BillingCycle | `${BillingCycle}`>;
+  billingCycle?: InputMaybe<BillingCycle>;
   categoryId?: InputMaybe<Scalars["OID"]["input"]>;
   currency?: InputMaybe<Scalars["Currency"]["input"]>;
   endDate?: InputMaybe<Scalars["Date"]["input"]>;
@@ -207,7 +207,7 @@ export type UpdateSubscriptionInput = {
 
 export type UpdateSubscriptionStatusInput = {
   id: Scalars["OID"]["input"];
-  status: SubscriptionStatus | `${SubscriptionStatus}`;
+  status: SubscriptionStatus;
 };
 
 export type UpdateVendorInput = {
