@@ -1,7 +1,7 @@
 {
   "name": "@powerhousedao/builder-team-admin",
   "description": "Builder Team Admin drive that holds a teams profile and its relevant document models.",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "license": "AGPL-3.0-only",
   "type": "module",
   "files": [
@@ -62,7 +62,7 @@
     "service-unstartup": "bash ./node_modules/@powerhousedao/ph-cli/dist/scripts/service-unstartup.sh"
   },
   "dependencies": {
-    "@powerhousedao/builder-profile": "0.0.7",
+    "@powerhousedao/builder-profile": "0.0.8",
     "@powerhousedao/builder-tools": "^5.1.0",
     "@powerhousedao/common": "^5.1.0",
     "@powerhousedao/design-system": "^5.1.0",
